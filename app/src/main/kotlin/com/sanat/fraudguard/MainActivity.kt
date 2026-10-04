@@ -424,40 +424,30 @@ class MainActivity : Activity() {
             FraudHistory.count(this)
 
         val latest =
-            FraudHistory.latest(this)
+            FraudHistory.list(
+                this,
+                limit = 1
+            ).firstOrNull()
 
         val latestText =
             if (latest != null) {
 
                 val type =
-                    latest.optString(
-                        "type",
-                        "UNKNOWN"
-                    )
+                    latest.type
 
                 val source =
-                    latest.optString(
-                        "source",
-                        "Unknown"
-                    )
+                    latest.source
 
                 val score =
-                    latest.optInt(
-                        "score",
-                        0
-                    )
+                    latest.score
 
                 val level =
-                    latest.optString(
-                        "level",
-                        "UNKNOWN"
-                    )
+                    latest.level
 
                 val details =
-                    latest.optString(
-                        "details",
+                    latest.details.ifBlank {
                         "No additional information."
-                    )
+                    }
 
                 """
 

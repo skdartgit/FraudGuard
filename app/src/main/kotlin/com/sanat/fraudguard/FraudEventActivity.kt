@@ -44,7 +44,7 @@ class FraudEventActivity : Activity() {
                 orientation =
                     LinearLayout.VERTICAL
                 setBackgroundColor(
-                    background
+                    this@FraudEventActivity.background
                 )
                 setPadding(
                     24,

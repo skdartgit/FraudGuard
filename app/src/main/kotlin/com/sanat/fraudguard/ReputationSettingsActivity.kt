@@ -42,7 +42,7 @@ class ReputationSettingsActivity : Activity() {
                 orientation =
                     LinearLayout.VERTICAL
                 setBackgroundColor(
-                    background
+                    this@ReputationSettingsActivity.background
                 )
                 setPadding(
                     24,
