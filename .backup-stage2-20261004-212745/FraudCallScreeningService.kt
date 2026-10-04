@@ -2,6 +2,7 @@ package com.sanat.fraudguard
 
 import android.telecom.Call
 import android.telecom.CallScreeningService
+import android.telecom.Connection
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -110,33 +111,14 @@ class FraudCallScreeningService :
                 "No additional information."
             }
 
-        val eventId =
-            FraudHistory.add(
-                this,
-                "CALL",
-                number,
-                score,
-                level,
-                reasonText
-            )
-
-        /*
-         * Live phone reputation is deliberately started AFTER
-         * the local fraud decision has been recorded.
-         *
-         * It must never delay the Android call-screening response.
-         */
-        if (eventId > 0L) {
-            try {
-                ReputationWorker.enqueuePhone(
-                    this,
-                    eventId,
-                    number
-                )
-            } catch (_: Exception) {
-                // Live reputation must never break call screening.
-            }
-        }
+        FraudHistory.add(
+            this,
+            "CALL",
+            number,
+            score,
+            level,
+            reasonText
+        )
 
         if (score >= 70) {
 

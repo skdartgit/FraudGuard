@@ -197,14 +197,9 @@ class IncomingSmsReceiver : BroadcastReceiver() {
 
                     for (i in 0 until maxUrls) {
 
-                        val urlObject =
-                            urls.optJSONObject(i)
-
                         val url =
-                            urlObject
-                                ?.optString("url", "")
-                                ?.trim()
-                                .orEmpty()
+                            urls.optString(i)
+                                .trim()
 
                         if (
                             url.isNotEmpty() &&

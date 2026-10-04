@@ -45,16 +45,6 @@
 
         </activity>
 
-        <!-- Fraud-event history -->
-        <activity
-            android:name=".FraudEventActivity"
-            android:exported="false" />
-
-        <!-- Live reputation configuration -->
-        <activity
-            android:name=".ReputationSettingsActivity"
-            android:exported="false" />
-
         <!-- SMS compose activity.
              These intents are part of the default-SMS role. -->
         <activity

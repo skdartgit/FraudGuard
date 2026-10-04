@@ -1,0 +1,261 @@
+name: Build FraudGuard Debug APK
+
+on:
+  push:
+    branches:
+      - "**"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+
+  build-debug:
+
+    name: Build FraudGuard Debug APK
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ------------------------------------------------------
+      # Checkout project
+      # ------------------------------------------------------
+
+      - name: Checkout source code
+        uses: actions/checkout@v5
+
+
+      # ------------------------------------------------------
+      # Java 17
+      # ------------------------------------------------------
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+
+      # ------------------------------------------------------
+      # Python 3.13
+      # Chaquopy uses Python during the Android build.
+      # ------------------------------------------------------
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+
+      # ------------------------------------------------------
+      # Download Gradle temporarily
+      #
+      # There is intentionally NO Gradle wrapper required
+      # in the Git repository.
+      # ------------------------------------------------------
+
+      - name: Install Gradle 9.4.1
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.4.1"
+          cache-provider: basic
+
+
+      # ------------------------------------------------------
+      # Verify downloaded Gradle
+      # ------------------------------------------------------
+
+      - name: Check installed Gradle
+        run: |
+          set -e
+
+          echo "Java:"
+          java -version
+
+          echo
+          echo "Python:"
+          python --version
+
+          echo
+          echo "Gradle:"
+          gradle --version
+
+
+      # ------------------------------------------------------
+      # CREATE GRADLE WRAPPER
+      #
+      # This is the important step.
+      #
+      # The global Gradle downloaded above runs the wrapper
+      # task. The wrapper files are generated inside the
+      # GitHub Actions runner.
+      # ------------------------------------------------------
+
+      - name: Create Gradle Wrapper
+        run: |
+          set -e
+
+          gradle wrapper             --gradle-version 9.4.1             --distribution-type bin
+
+
+      # ------------------------------------------------------
+      # Make wrapper executable
+      # ------------------------------------------------------
+
+      - name: Make gradlew executable
+        run: |
+          set -e
+          chmod +x gradlew
+
+
+      # ------------------------------------------------------
+      # Verify generated wrapper
+      # ------------------------------------------------------
+
+      - name: Verify Gradle Wrapper
+        run: |
+          set -e
+
+          test -f gradlew
+          test -f gradlew.bat
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f gradle/wrapper/gradle-wrapper.properties
+
+          echo
+          echo "Generated Gradle wrapper:"
+          ls -lh gradlew
+          ls -lh gradlew.bat
+          ls -lh gradle/wrapper/
+
+
+      # ------------------------------------------------------
+      # Run the newly generated wrapper
+      # ------------------------------------------------------
+
+      - name: Verify Gradle Wrapper Version
+        run: |
+          set -e
+          ./gradlew --version
+
+
+      # ------------------------------------------------------
+      # Build Debug APK
+      # ------------------------------------------------------
+
+      - name: Build Debug APK
+              id: build_apk
+              continue-on-error: true
+              run: |
+                set -o pipefail
+      
+                ./gradlew :app:compileDebugKotlin \
+                  --stacktrace \
+                  --console=plain \
+                  2>&1 | tee kotlin-build.log
+      
+            - name: Extract exact Kotlin errors
+              if: steps.build_apk.outcome == 'failure'
+              run: |
+                echo ""
+                echo "============================================================"
+                echo "              EXACT KOTLIN COMPILER ERROR"
+                echo "============================================================"
+                echo ""
+      
+                grep -n -E \
+                  "e: file://|error:|unresolved reference|type mismatch|cannot access|cannot find symbol|overload resolution ambiguity|none of the following functions" \
+                  kotlin-build.log \
+                  || true
+      
+                echo ""
+                echo "============================================================"
+                echo "                KOTLIN ERROR CONTEXT"
+                echo "============================================================"
+                echo ""
+      
+                grep -n -B 3 -A 12 \
+                  -E "e: file://|error:|unresolved reference|type mismatch|cannot access|cannot find symbol|overload resolution ambiguity" \
+                  kotlin-build.log \
+                  || true
+      
+                echo ""
+                echo "============================================================"
+                echo "                    FULL ERROR TAIL"
+                echo "============================================================"
+                echo ""
+      
+                tail -n 150 kotlin-build.log
+      
+                echo ""
+                echo "============================================================"
+                echo "The Kotlin compilation failed."
+                echo "============================================================"
+      
+                exit 1
+      
+            - name: Build complete APK
+              if: steps.build_apk.outcome == 'success'
+              run: |
+                ./gradlew assembleDebug \
+                  --stacktrace \
+                  --console=plain
+      
+            - name: Upload Kotlin diagnostic log
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                name: FraudGuard-kotlin-build-log
+                path: kotlin-build.log
+                if-no-files-found: ignore
+
+
+      # ------------------------------------------------------
+      # Verify APK
+      # ------------------------------------------------------
+
+      - name: Verify Debug APK
+        run: |
+          set -e
+
+          test -f app/build/outputs/apk/debug/app-debug.apk
+
+          echo
+          echo "=========================================="
+          echo "DEBUG APK CREATED SUCCESSFULLY"
+          echo "=========================================="
+
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+
+      # ------------------------------------------------------
+      # Upload APK
+      # ------------------------------------------------------
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FraudGuard-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+
+      # ------------------------------------------------------
+      # Upload generated wrapper too
+      #
+      # This lets you download the generated gradlew files
+      # from the GitHub Actions run if required.
+      # ------------------------------------------------------
+
+      - name: Upload Generated Gradle Wrapper
+        uses: actions/upload-artifact@v4
+        with:
+          name: FraudGuard-gradle-wrapper
+          path: |
+            gradlew
+            gradlew.bat
+            gradle/wrapper/gradle-wrapper.jar
+            gradle/wrapper/gradle-wrapper.properties
+          if-no-files-found: error

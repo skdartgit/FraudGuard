@@ -1,0 +1,332 @@
+package com.sanat.fraudguard
+
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URLEncoder
+import java.net.URL
+import java.nio.charset.StandardCharsets
+
+object LiveReputationClient {
+
+    data class Result(
+        val provider: String,
+        val status: String,
+        val score: Int,
+        val details: String
+    )
+
+    fun checkUrl(
+        urlValue: String,
+        apiKey: String
+    ): Result {
+
+        if (apiKey.isBlank()) {
+            return Result(
+                "Google Web Risk",
+                "NOT_CONFIGURED",
+                -1,
+                "Google Web Risk API key is not configured."
+            )
+        }
+
+        val encoded =
+            URLEncoder.encode(
+                urlValue,
+                StandardCharsets.UTF_8.toString()
+            )
+
+        val endpoint =
+            "https://webrisk.googleapis.com/v1/uris:search" +
+                "?threatTypes=MALWARE" +
+                "&threatTypes=SOCIAL_ENGINEERING" +
+                "&threatTypes=UNWANTED_SOFTWARE" +
+                "&threatTypes=SOCIAL_ENGINEERING_EXTENDED_COVERAGE" +
+                "&uri=$encoded" +
+                "&key=" +
+                URLEncoder.encode(
+                    apiKey,
+                    StandardCharsets.UTF_8.toString()
+                )
+
+        return try {
+
+            val json =
+                getJson(endpoint)
+
+            val threat =
+                json.optJSONObject("threat")
+
+            if (threat == null) {
+
+                Result(
+                    "Google Web Risk",
+                    "NO_MATCH",
+                    0,
+                    "No matching Web Risk threat list was returned."
+                )
+
+            } else {
+
+                val types =
+                    threat.optJSONArray(
+                        "threatTypes"
+                    )
+
+                val names =
+                    if (types != null) {
+                        buildString {
+                            for (
+                                i in 0 until types.length()
+                            ) {
+                                if (i > 0) {
+                                    append(", ")
+                                }
+                                append(
+                                    types.optString(i)
+                                )
+                            }
+                        }
+                    } else {
+                        "Threat detected"
+                    }
+
+                val extended =
+                    names.contains(
+                        "SOCIAL_ENGINEERING_EXTENDED_COVERAGE"
+                    )
+
+                Result(
+                    "Google Web Risk",
+                    "MATCH",
+                    if (extended) 85 else 95,
+                    "Web Risk match: $names"
+                )
+            }
+
+        } catch (e: Exception) {
+
+            Result(
+                "Google Web Risk",
+                "ERROR",
+                -1,
+                "Web Risk lookup failed: " +
+                    (e.message ?: "unknown error")
+            )
+        }
+    }
+
+    fun checkPhone(
+        phone: String,
+        apiKey: String
+    ): Result {
+
+        if (apiKey.isBlank()) {
+            return Result(
+                "IPQualityScore",
+                "NOT_CONFIGURED",
+                -1,
+                "IPQS API key is not configured."
+            )
+        }
+
+        val encodedPhone =
+            URLEncoder.encode(
+                phone,
+                StandardCharsets.UTF_8.toString()
+            )
+
+        val endpoint =
+            "https://www.ipqualityscore.com/api/json/phone" +
+                "?phone=$encodedPhone"
+
+        return try {
+
+            val json =
+                getJson(
+                    endpoint,
+                    mapOf(
+                        "IPQS-KEY" to apiKey
+                    )
+                )
+
+            val success =
+                json.optBoolean(
+                    "success",
+                    false
+                )
+
+            if (!success) {
+
+                Result(
+                    "IPQualityScore",
+                    "ERROR",
+                    -1,
+                    json.optString(
+                        "message",
+                        "IPQS lookup failed."
+                    )
+                )
+
+            } else {
+
+                val fraudScore =
+                    json.optInt(
+                        "fraud_score",
+                        0
+                    ).coerceIn(0, 100)
+
+                val recentAbuse =
+                    json.optBoolean(
+                        "recent_abuse",
+                        false
+                    )
+
+                val risky =
+                    json.optBoolean(
+                        "risky",
+                        false
+                    )
+
+                val valid =
+                    json.optBoolean(
+                        "valid",
+                        true
+                    )
+
+                val voip =
+                    json.optBoolean(
+                        "VOIP",
+                        false
+                    )
+
+                val carrier =
+                    json.optString(
+                        "carrier",
+                        "unknown"
+                    )
+
+                val lineType =
+                    json.optString(
+                        "line_type",
+                        "unknown"
+                    )
+
+                val finalScore =
+                    when {
+                        recentAbuse ->
+                            maxOf(
+                                fraudScore,
+                                90
+                            )
+
+                        !valid ->
+                            maxOf(
+                                fraudScore,
+                                80
+                            )
+
+                        risky ->
+                            maxOf(
+                                fraudScore,
+                                75
+                            )
+
+                        else ->
+                            fraudScore
+                    }.coerceIn(0, 100)
+
+                val details =
+                    buildString {
+                        append(
+                            "IPQS fraud score: "
+                        )
+                        append(fraudScore)
+                        append(". Valid: ")
+                        append(valid)
+                        append(". Risky: ")
+                        append(risky)
+                        append(". Recent abuse: ")
+                        append(recentAbuse)
+                        append(". VOIP: ")
+                        append(voip)
+                        append(". Carrier: ")
+                        append(carrier)
+                        append(". Line type: ")
+                        append(lineType)
+                    }
+
+                Result(
+                    "IPQualityScore",
+                    "CHECKED",
+                    finalScore,
+                    details
+                )
+            }
+
+        } catch (e: Exception) {
+
+            Result(
+                "IPQualityScore",
+                "ERROR",
+                -1,
+                "IPQS lookup failed: " +
+                    (e.message ?: "unknown error")
+            )
+        }
+    }
+
+    private fun getJson(
+        endpoint: String,
+        headers: Map<String, String> = emptyMap()
+    ): JSONObject {
+
+        val connection =
+            URL(endpoint).openConnection()
+                as HttpURLConnection
+
+        try {
+
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            connection.instanceFollowRedirects = false
+
+            for (
+                entry in headers.entries
+            ) {
+                connection.setRequestProperty(
+                    entry.key,
+                    entry.value
+                )
+            }
+
+            val code =
+                connection.responseCode
+
+            val stream =
+                if (code in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
+
+            val body =
+                stream?.bufferedReader()
+                    ?.use { it.readText() }
+                    ?: ""
+
+            if (code !in 200..299) {
+                throw IllegalStateException(
+                    "HTTP $code"
+                )
+            }
+
+            return JSONObject(
+                body.ifBlank { "{}" }
+            )
+
+        } finally {
+            connection.disconnect()
+        }
+    }
+}

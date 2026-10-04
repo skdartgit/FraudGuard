@@ -291,50 +291,6 @@ class MainActivity : Activity() {
         )
 
         content.addView(
-            button(
-                "OPEN FRAUD HISTORY"
-            ) {
-
-                startActivity(
-                    Intent(
-                        this,
-                        FraudEventActivity::class.java
-                    )
-                )
-            }
-        )
-
-        content.addView(
-            button(
-                "LIVE REPUTATION SETTINGS"
-            ) {
-
-                startActivity(
-                    Intent(
-                        this,
-                        ReputationSettingsActivity::class.java
-                    )
-                )
-            }
-        )
-
-        content.addView(
-            button(
-                "DETAILED PRIVACY AUDIT"
-            ) {
-
-                val result =
-                    PrivacyAudit.run(this)
-
-                Toast.makeText(
-                    this,
-                    PrivacyAudit.asText(result),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        )
-
-        content.addView(
             text(
                 """
                 HOW PROTECTION WORKS

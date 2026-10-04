@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.provider.Telephony.Sms
+import org.json.JSONArray
 import java.util.concurrent.Executors
 
 class IncomingSmsReceiver : BroadcastReceiver() {
@@ -142,86 +143,14 @@ class IncomingSmsReceiver : BroadcastReceiver() {
                         "No additional information."
                     }
 
-                val eventId =
-                    FraudHistory.add(
-                        appContext,
-                        "SMS",
-                        sender,
-                        score,
-                        level,
-                        reasonText
-                    )
-
-                /*
-                 * Start live phone reputation only for a
-                 * reasonably phone-like sender.
-                 *
-                 * SMS message text is NEVER sent to the
-                 * reputation provider.
-                 */
-                if (
-                    eventId > 0L &&
-                    sender.filter { it.isDigit() }.length >= 7
-                ) {
-                    try {
-                        ReputationWorker.enqueuePhone(
-                            appContext,
-                            eventId,
-                            sender
-                        )
-                    } catch (_: Exception) {
-                        // Live reputation must never break SMS handling.
-                    }
-                }
-
-                /*
-                 * Python local analysis returns detected URLs.
-                 *
-                 * Only the URLs themselves are sent to the URL
-                 * reputation provider. The SMS body is never sent.
-                 *
-                 * Limit to three URLs so one SMS cannot create an
-                 * excessive number of background reputation jobs.
-                 */
-                val urls =
-                    result.optJSONArray("urls")
-                        ?: result.optJSONArray("detected_urls")
-
-                if (eventId > 0L && urls != null) {
-
-                    val seenUrls =
-                        mutableSetOf<String>()
-
-                    val maxUrls =
-                        minOf(urls.length(), 3)
-
-                    for (i in 0 until maxUrls) {
-
-                        val urlObject =
-                            urls.optJSONObject(i)
-
-                        val url =
-                            urlObject
-                                ?.optString("url", "")
-                                ?.trim()
-                                .orEmpty()
-
-                        if (
-                            url.isNotEmpty() &&
-                            seenUrls.add(url)
-                        ) {
-                            try {
-                                ReputationWorker.enqueueUrl(
-                                    appContext,
-                                    eventId,
-                                    url
-                                )
-                            } catch (_: Exception) {
-                                // One URL failure must not break SMS handling.
-                            }
-                        }
-                    }
-                }
+                FraudHistory.add(
+                    appContext,
+                    "SMS",
+                    sender,
+                    score,
+                    level,
+                    reasonText
+                )
 
                 if (score >= 50) {
 

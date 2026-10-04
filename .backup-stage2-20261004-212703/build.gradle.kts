@@ -49,6 +49,5 @@ chaquopy {
 }
 
 dependencies {
-    implementation("androidx.work:work-runtime:2.12.0")
     implementation("androidx.core:core-ktx:1.17.0")
 }
