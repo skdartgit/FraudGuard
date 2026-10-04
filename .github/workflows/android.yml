@@ -21,15 +21,17 @@ jobs:
     steps:
 
       # ------------------------------------------------------
-      # 1. Checkout project
+      # Checkout project
       # ------------------------------------------------------
+
       - name: Checkout source code
         uses: actions/checkout@v5
 
 
       # ------------------------------------------------------
-      # 2. Install Java 17
+      # Java 17
       # ------------------------------------------------------
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -38,9 +40,10 @@ jobs:
 
 
       # ------------------------------------------------------
-      # 3. Install Python 3.13
-      #    Required by the embedded Python/Chaquopy build.
+      # Python 3.13
+      # Chaquopy uses Python during the Android build.
       # ------------------------------------------------------
+
       - name: Set up Python 3.13
         uses: actions/setup-python@v6
         with:
@@ -48,14 +51,12 @@ jobs:
 
 
       # ------------------------------------------------------
-      # 4. Download Gradle 9.4.1
+      # Download Gradle temporarily
       #
-      # IMPORTANT:
-      # At this point the repository does NOT need to contain
-      # gradlew.
-      #
-      # GitHub Actions installs Gradle first.
+      # There is intentionally NO Gradle wrapper required
+      # in the Git repository.
       # ------------------------------------------------------
+
       - name: Install Gradle 9.4.1
         uses: gradle/actions/setup-gradle@v6
         with:
@@ -64,93 +65,115 @@ jobs:
 
 
       # ------------------------------------------------------
-      # 5. Verify the downloaded Gradle
+      # Verify downloaded Gradle
       # ------------------------------------------------------
+
       - name: Check installed Gradle
         run: |
+          set -e
+
+          echo "Java:"
+          java -version
+
+          echo
+          echo "Python:"
+          python --version
+
+          echo
+          echo "Gradle:"
           gradle --version
 
 
       # ------------------------------------------------------
-      # 6. CREATE GRADLE WRAPPER
+      # CREATE GRADLE WRAPPER
       #
-      # This generates:
+      # This is the important step.
       #
-      # gradlew
-      # gradlew.bat
-      # gradle/wrapper/gradle-wrapper.jar
-      # gradle/wrapper/gradle-wrapper.properties
-      #
-      # The wrapper will use Gradle 9.4.1.
+      # The global Gradle downloaded above runs the wrapper
+      # task. The wrapper files are generated inside the
+      # GitHub Actions runner.
       # ------------------------------------------------------
+
       - name: Create Gradle Wrapper
         run: |
-          gradle wrapper \
-            --gradle-version 9.4.1 \
-            --distribution-type bin
+          set -e
+
+          gradle wrapper             --gradle-version 9.4.1             --distribution-type bin
 
 
       # ------------------------------------------------------
-      # 7. Make Linux Gradle wrapper executable
+      # Make wrapper executable
       # ------------------------------------------------------
+
       - name: Make gradlew executable
         run: |
+          set -e
           chmod +x gradlew
 
 
       # ------------------------------------------------------
-      # 8. Verify generated Gradle wrapper
+      # Verify generated wrapper
       # ------------------------------------------------------
+
       - name: Verify Gradle Wrapper
         run: |
+          set -e
+
           test -f gradlew
           test -f gradlew.bat
           test -f gradle/wrapper/gradle-wrapper.jar
           test -f gradle/wrapper/gradle-wrapper.properties
 
-          echo "Gradle wrapper files:"
+          echo
+          echo "Generated Gradle wrapper:"
           ls -lh gradlew
           ls -lh gradlew.bat
           ls -lh gradle/wrapper/
 
 
       # ------------------------------------------------------
-      # 9. Verify the wrapper itself
-      #
-      # IMPORTANT:
-      # From this point onward we use ./gradlew,
-      # NOT the globally installed "gradle".
+      # Run the newly generated wrapper
       # ------------------------------------------------------
-      - name: Verify Gradle Wrapper
+
+      - name: Verify Gradle Wrapper Version
         run: |
+          set -e
           ./gradlew --version
 
 
       # ------------------------------------------------------
-      # 10. Build DEBUG APK
-      #
-      # No release signing.
-      # No Play Store publishing.
+      # Build Debug APK
       # ------------------------------------------------------
+
       - name: Build Debug APK
         run: |
+          set -e
+
           ./gradlew assembleDebug --stacktrace
 
 
       # ------------------------------------------------------
-      # 11. Verify APK
+      # Verify APK
       # ------------------------------------------------------
+
       - name: Verify Debug APK
         run: |
+          set -e
+
           test -f app/build/outputs/apk/debug/app-debug.apk
 
-          echo "Debug APK successfully created:"
+          echo
+          echo "=========================================="
+          echo "DEBUG APK CREATED SUCCESSFULLY"
+          echo "=========================================="
+
           ls -lh app/build/outputs/apk/debug/app-debug.apk
 
 
       # ------------------------------------------------------
-      # 12. Upload APK as GitHub Actions artifact
+      # Upload APK
       # ------------------------------------------------------
+
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -160,14 +183,12 @@ jobs:
 
 
       # ------------------------------------------------------
-      # 13. Upload generated Gradle wrapper
+      # Upload generated wrapper too
       #
-      # This is OPTIONAL but useful.
-      #
-      # It lets you download the generated wrapper from
-      # the GitHub Actions run and put it into the repository
-      # later if you want.
+      # This lets you download the generated gradlew files
+      # from the GitHub Actions run if required.
       # ------------------------------------------------------
+
       - name: Upload Generated Gradle Wrapper
         uses: actions/upload-artifact@v4
         with:
