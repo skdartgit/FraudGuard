@@ -45,6 +45,19 @@ object FraudEngine {
         return pythonResult
     }
 
+    fun analyzeSms(
+        context: Context,
+        sender: String,
+        message: String
+    ): JSONObject {
+
+        return PythonBridge.analyzeSms(
+            sender,
+            message
+        )
+    }
+
+
     private fun localNumberScore(number: String): Int {
 
         val cleaned = number.replace(
