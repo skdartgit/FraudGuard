@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="security_background">#FFFDF5</color>
+    <color name="security_button">#6B5B3E</color>
+    <color name="security_text">#29251F</color>
+</resources>
