@@ -353,8 +353,80 @@ class MainActivity : Activity() {
                 RoleManager.ROLE_SMS
             )
 
+        val contactsGranted =
+            checkSelfPermission(
+                Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+
+        val smsGranted =
+            if (Build.VERSION.SDK_INT >= 23) {
+                checkSelfPermission(
+                    Manifest.permission.RECEIVE_SMS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+
+        val notificationsGranted =
+            if (Build.VERSION.SDK_INT >= 33) {
+                checkSelfPermission(
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+
         val events =
             FraudHistory.count(this)
+
+        val latest =
+            FraudHistory.latest(this)
+
+        val latestText =
+            if (latest != null) {
+
+                val type =
+                    latest.optString(
+                        "type",
+                        "UNKNOWN"
+                    )
+
+                val source =
+                    latest.optString(
+                        "source",
+                        "Unknown"
+                    )
+
+                val score =
+                    latest.optInt(
+                        "score",
+                        0
+                    )
+
+                val level =
+                    latest.optString(
+                        "level",
+                        "UNKNOWN"
+                    )
+
+                val details =
+                    latest.optString(
+                        "details",
+                        "No additional information."
+                    )
+
+                """
+
+                Latest event:
+                $type
+                Source: $source
+                Risk: $score/100 ($level)
+                Details: $details
+                """.trimIndent()
+
+            } else {
+                "Latest event: NONE"
+            }
 
         statusText.text =
             """
@@ -365,14 +437,31 @@ class MainActivity : Activity() {
                 else "NOT ENABLED ⚠️"
             }
 
+            Contacts permission: ${
+                if (contactsGranted) "GRANTED ✅"
+                else "NOT GRANTED ⚠️"
+            }
+
             SMS protection: ${
                 if (smsRole) "ACTIVE ✅"
                 else "NOT ENABLED ⚠️"
             }
 
+            SMS receive permission: ${
+                if (smsGranted) "GRANTED ✅"
+                else "NOT GRANTED ⚠️"
+            }
+
+            Notifications: ${
+                if (notificationsGranted) "GRANTED ✅"
+                else "NOT GRANTED ⚠️"
+            }
+
             Recorded security events: $events
 
             Python engine: EMBEDDED
+
+            $latestText
             """.trimIndent()
     }
 
@@ -404,27 +493,54 @@ class MainActivity : Activity() {
 
             Toast.makeText(
                 this,
-                "Call protection is already enabled.",
+                "Call protection is active. Checking required permissions...",
                 Toast.LENGTH_SHORT
             ).show()
 
             requestRequiredPermissions()
+            updateStatus()
 
             return
         }
 
-        startActivityForResult(
-            roleManager.createRequestRoleIntent(
-                RoleManager.ROLE_CALL_SCREENING
-            ),
-            REQUEST_CALL_ROLE
-        )
+        try {
+
+            startActivityForResult(
+                roleManager.createRequestRoleIntent(
+                    RoleManager.ROLE_CALL_SCREENING
+                ),
+                REQUEST_CALL_ROLE
+            )
+
+        } catch (e: Exception) {
+
+            Toast.makeText(
+                this,
+                "Could not open call-protection role: ${
+                    e.message ?: "unknown error"
+                }",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun requestSmsRole() {
 
         val roleManager =
             getSystemService(RoleManager::class.java)
+
+        if (
+            Build.VERSION.SDK_INT < 29
+        ) {
+
+            Toast.makeText(
+                this,
+                "SMS protection requires Android 10 or newer.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            return
+        }
 
         if (
             !roleManager.isRoleAvailable(
@@ -447,17 +563,37 @@ class MainActivity : Activity() {
             )
         ) {
 
+            Toast.makeText(
+                this,
+                "FraudGuard is already the default SMS app.",
+                Toast.LENGTH_SHORT
+            ).show()
+
             requestRequiredPermissions()
+            updateStatus()
 
             return
         }
 
-        startActivityForResult(
-            roleManager.createRequestRoleIntent(
-                RoleManager.ROLE_SMS
-            ),
-            REQUEST_SMS_ROLE
-        )
+        try {
+
+            startActivityForResult(
+                roleManager.createRequestRoleIntent(
+                    RoleManager.ROLE_SMS
+                ),
+                REQUEST_SMS_ROLE
+            )
+
+        } catch (e: Exception) {
+
+            Toast.makeText(
+                this,
+                "Could not open SMS role request: ${
+                    e.message ?: "unknown error"
+                }",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun requestRequiredPermissions() {
@@ -540,12 +676,114 @@ class MainActivity : Activity() {
             data
         )
 
-        if (
-            requestCode == REQUEST_CALL_ROLE ||
-            requestCode == REQUEST_SMS_ROLE
-        ) {
+        if (requestCode == REQUEST_CALL_ROLE) {
 
-            requestRequiredPermissions()
+            val roleManager =
+                getSystemService(RoleManager::class.java)
+
+            if (
+                roleManager.isRoleHeld(
+                    RoleManager.ROLE_CALL_SCREENING
+                )
+            ) {
+
+                Toast.makeText(
+                    this,
+                    "Call protection enabled. Please allow Contacts permission if requested.",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                requestRequiredPermissions()
+
+            } else {
+
+                Toast.makeText(
+                    this,
+                    "Call protection was not enabled.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+            updateStatus()
+        }
+
+        if (requestCode == REQUEST_SMS_ROLE) {
+
+            val roleManager =
+                getSystemService(RoleManager::class.java)
+
+            if (
+                roleManager.isRoleHeld(
+                    RoleManager.ROLE_SMS
+                )
+            ) {
+
+                Toast.makeText(
+                    this,
+                    "SMS protection enabled. Please allow the requested permissions.",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                requestRequiredPermissions()
+
+            } else {
+
+                Toast.makeText(
+                    this,
+                    "FraudGuard was not selected as the default SMS app.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+            updateStatus()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
+        if (requestCode == REQUEST_PERMISSIONS) {
+
+            val denied =
+                permissions.indices
+                    .filter {
+                        grantResults[it] !=
+                            PackageManager.PERMISSION_GRANTED
+                    }
+                    .map {
+                        permissions[it]
+                    }
+
+            if (denied.isEmpty()) {
+
+                Toast.makeText(
+                    this,
+                    "Required protection permissions granted.",
+                    Toast.LENGTH_LONG
+                ).show()
+
+            } else {
+
+                Toast.makeText(
+                    this,
+                    "Some permissions were denied. Protection may be limited.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+            updateStatus()
+        }
+
+        if (requestCode == REQUEST_NOTIFICATION) {
 
             updateStatus()
         }

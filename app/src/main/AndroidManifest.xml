@@ -13,6 +13,7 @@
     <!-- SMS -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <uses-permission android:name="android.permission.SEND_SMS" />
 
     <!-- Installed-app security audit -->
@@ -87,6 +88,24 @@
 
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+
+        </receiver>
+
+        <!--
+             Required for Android SMS role eligibility.
+             FraudGuard currently focuses on SMS fraud detection.
+             MMS/WAP-PUSH is accepted by this receiver so that
+             Android recognizes the app as a valid SMS-role candidate.
+        -->
+        <receiver
+            android:name=".IncomingWapPushReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_WAP_PUSH">
+
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
             </intent-filter>
 
         </receiver>

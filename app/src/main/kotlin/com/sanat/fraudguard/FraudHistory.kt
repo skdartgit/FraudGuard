@@ -77,6 +77,36 @@ object FraudHistory {
         }
     }
 
+    fun latest(context: Context): JSONObject? {
+
+        return try {
+
+            val prefs =
+                context.getSharedPreferences(
+                    PREFS,
+                    Context.MODE_PRIVATE
+                )
+
+            val array =
+                JSONArray(
+                    prefs.getString(
+                        EVENTS,
+                        "[]"
+                    ) ?: "[]"
+                )
+
+            if (array.length() == 0) {
+                null
+            } else {
+                array.getJSONObject(0)
+            }
+
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+
     fun clear(context: Context) {
 
         context.getSharedPreferences(
